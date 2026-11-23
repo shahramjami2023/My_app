@@ -652,3 +652,4 @@ class _CoinMiniGameDialogState extends State<_CoinMiniGameDialog> {
     );
   }
 }
+EOF
