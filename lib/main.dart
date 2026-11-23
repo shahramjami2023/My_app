@@ -1,651 +1,649 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:record/record.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart';
 
 void main() {
   runApp(const MaterialApp(
     debugShowCheckedModeBanner: false,
     home: Directionality(
       textDirection: TextDirection.rtl,
-      child: TalkingPetsWorld(),
+      child: StickmanPartyMenu(),
     ),
   ));
 }
 
-class PetCharacter {
+class PlayerInfo {
+  final int id;
   final String name;
-  final String normalEmoji;
-  final String happyEmoji;
-  final String dizzyEmoji;
-  final String sleepEmoji;
-  final String talkEmoji;
-  final Color bodyColor;
-  final Color bgColor;
-  final double voiceSpeed;
+  final Color color;
+  final LogicalKeyboardKey key;
+  final String keyLabel;
+  int score;
 
-  const PetCharacter({
+  PlayerInfo({
+    required this.id,
     required this.name,
-    required this.normalEmoji,
-    required this.happyEmoji,
-    required this.dizzyEmoji,
-    required this.sleepEmoji,
-    required this.talkEmoji,
-    required this.bodyColor,
-    required this.bgColor,
-    required this.voiceSpeed,
+    required this.color,
+    required this.key,
+    required this.keyLabel,
+    this.score = 0,
   });
 }
 
-class TalkingPetsWorld extends StatefulWidget {
-  const TalkingPetsWorld({super.key});
+class StickmanPartyMenu extends StatefulWidget {
+  const StickmanPartyMenu({super.key});
 
   @override
-  State<TalkingPetsWorld> createState() => _TalkingPetsWorldState();
+  State<StickmanPartyMenu> createState() => _StickmanPartyMenuState();
 }
 
-class _TalkingPetsWorldState extends State<TalkingPetsWorld>
-with SingleTickerProviderStateMixin {
-  final List<PetCharacter> _pets = const [
-    PetCharacter(
-      name: 'گربه تام',
-      normalEmoji: '🐱',
-      happyEmoji: '😹',
-      dizzyEmoji: '😵',
-      sleepEmoji: '😴',
-      talkEmoji: '🗣️',
-      bodyColor: Color(0xFF9E9E9E),
-      bgColor: Color(0xFFFFF8E1),
-      voiceSpeed: 1.45,
-    ),
-    PetCharacter(
-      name: 'سگ بن',
-      normalEmoji: '🐶',
-      happyEmoji: '🐕',
-      dizzyEmoji: '🤪',
-      sleepEmoji: '😴',
-      talkEmoji: '🐶',
-      bodyColor: Color(0xFF8D6E63),
-      bgColor: Color(0xFFEFEBE9),
-      voiceSpeed: 0.85,
-    ),
-    PetCharacter(
-      name: 'طوطی پیر',
-      normalEmoji: '🦜',
-      happyEmoji: '🦚',
-      dizzyEmoji: '💫',
-      sleepEmoji: '💤',
-      talkEmoji: '🦜',
-      bodyColor: Color(0xFF43A047),
-      bgColor: Color(0xFFE8F5E9),
-      voiceSpeed: 1.75,
-    ),
-    PetCharacter(
-      name: 'روباه زرنگ',
-      normalEmoji: '🦊',
-      happyEmoji: '🦊',
-      dizzyEmoji: '😵‍💫',
-      sleepEmoji: '😴',
-      talkEmoji: '🦊',
-      bodyColor: Color(0xFFEF6C00),
-      bgColor: Color(0xFFFFF3E0),
-      voiceSpeed: 1.30,
-    ),
-    PetCharacter(
-      name: 'ربات هوشمند',
-      normalEmoji: '🤖',
-      happyEmoji: '👾',
-      dizzyEmoji: '💥',
-      sleepEmoji: '🔋',
-      talkEmoji: '🤖',
-      bodyColor: Color(0xFF546E7A),
-      bgColor: Color(0xFFECEFF1),
-      voiceSpeed: 1.10,
-    ),
+class _StickmanPartyMenuState extends State<StickmanPartyMenu> {
+  int _playerCount = 2;
+
+  final List<PlayerInfo> _players = [
+    PlayerInfo(id: 0, name: 'قرمز', color: Colors.red, key: LogicalKeyboardKey.keyW, keyLabel: 'W'),
+    PlayerInfo(id: 1, name: 'آبی', color: Colors.blue, key: LogicalKeyboardKey.arrowUp, keyLabel: '↑'),
+    PlayerInfo(id: 2, name: 'سبز', color: Colors.green, key: LogicalKeyboardKey.keyA, keyLabel: 'A'),
+    PlayerInfo(id: 3, name: 'زرد', color: Colors.orange, key: LogicalKeyboardKey.keyL, keyLabel: 'L'),
   ];
 
-  int _selectedPetIndex = 0;
-  late String _currentFace;
-  String _speechText = 'سلام! من آماده‌ام؛ حرف بزن یا با من بازی کن!';
-  String _equippedAccessory = '';
-  double _scale = 1.0;
-
-  int _coins = 100;
-  int _happiness = 85;
-  int _hunger = 75;
-  int _energy = 80;
-
-  bool _isSleeping = false;
-  bool _isRecording = false;
-  bool _isTalking = false;
-
-  late AnimationController _breathingController;
-  final AudioRecorder _audioRecorder = AudioRecorder();
-  final AudioPlayer _audioPlayer = AudioPlayer();
-
-  PetCharacter get _pet => _pets[_selectedPetIndex];
-
-  @override
-  void initState() {
-    super.initState();
-    _currentFace = _pet.normalEmoji;
-    _breathingController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-      lowerBound: 0.96,
-      upperBound: 1.04,
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _breathingController.dispose();
-    _audioRecorder.dispose();
-    _audioPlayer.dispose();
-    super.dispose();
-  }
-
-  void _selectPet(int index) {
-    if (_isRecording || _isTalking) return;
-    setState(() {
-      _selectedPetIndex = index;
-      _isSleeping = false;
-      _currentFace = _pet.normalEmoji;
-      _speechText = 'سلام! من ${_pet.name} هستم! صدام رو امتحان کن!';
-    });
-  }
-
-  Future<void> _toggleRecording() async {
-    if (_isSleeping) {
-      setState(() => _speechText = 'هیس! خوابیدم... اول بیدارم کن 💤');
-      return;
-    }
-
-    if (!_isRecording) {
-      if (await _audioRecorder.hasPermission()) {
-        String path = '';
-        if (!kIsWeb) {
-          final dir = await getTemporaryDirectory();
-          path = '${dir.path}/pet_voice.m4a';
-        }
-        await _audioRecorder.start(const RecordConfig(), path: path);
-        setState(() {
-          _isRecording = true;
-          _currentFace = '👂';
-        _speechText = 'دارم گوش میدم... حرف بزن! 🎙️';
-        _scale = 1.15;
-        });
-      } else {
-        setState(() => _speechText = 'اجازه دسترسی به میکروفون داده نشد!');
-      }
+  void _startGame(int gameIndex) {
+    final activePlayers = _players.take(_playerCount).toList();
+    Widget gameScreen;
+    if (gameIndex == 0) {
+      gameScreen = TugOfWarGame(players: activePlayers);
+    } else if (gameIndex == 1) {
+      gameScreen = TankBattleGame(players: activePlayers);
     } else {
-      final recordedPath = await _audioRecorder.stop();
-      setState(() {
-        _isRecording = false;
-        _scale = 1.0;
-      });
-      if (recordedPath != null) {
-        _playPetVoice(recordedPath);
-      }
+      gameScreen = QuickDrawGame(players: activePlayers);
     }
-  }
 
-  Future<void> _playPetVoice(String path) async {
-    setState(() {
-      _isTalking = true;
-      _currentFace = _pet.talkEmoji;
-      _speechText = '${_pet.name} داره تکرار می‌کنه...';
-    });
-
-    try {
-      if (kIsWeb) {
-        await _audioPlayer.setUrl(path);
-      } else {
-        await _audioPlayer.setFilePath(path);
-      }
-      await _audioPlayer.setSpeed(_pet.voiceSpeed);
-      await _audioPlayer.play();
-
-      await _audioPlayer.playerStateStream.firstWhere(
-        (state) => state.processingState == ProcessingState.completed,
-      );
-    } catch (_) {
-      if (mounted) setState(() => _speechText = 'خطا در پخش صدا!');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isTalking = false;
-          _currentFace = _pet.normalEmoji;
-          _coins += 2;
-          _speechText = 'دوباره حرف بزن! (+۲ سکه گرفتی 🪙)';
-        });
-      }
-    }
-  }
-
-  void _react(String face, String msg, {int happy = 5, int hunger = 0, int energy = -2}) {
-    if (_isSleeping || _isRecording || _isTalking) return;
-    setState(() {
-      _currentFace = face;
-      _speechText = msg;
-      _scale = 1.25;
-      _happiness = (_happiness + happy).clamp(0, 100);
-      _hunger = (_hunger + hunger).clamp(0, 100);
-      _energy = (_energy + energy).clamp(0, 100);
-    });
-
-    Timer(const Duration(milliseconds: 1600), () {
-      if (mounted && !_isSleeping && !_isRecording && !_isTalking) {
-        setState(() {
-          _currentFace = _pet.normalEmoji;
-          _scale = 1.0;
-        });
-      }
-    });
-  }
-
-  void _toggleSleep() {
-    if (_isRecording || _isTalking) return;
-    setState(() {
-      _isSleeping = !_isSleeping;
-      if (_isSleeping) {
-        _currentFace = _pet.sleepEmoji;
-        _speechText = 'خوابیدم... انرژی‌ام داره کامل میشه 💤';
-    _energy = (_energy + 30).clamp(0, 100);
-      } else {
-        _currentFace = _pet.normalEmoji;
-        _speechText = 'صبح بخیر! پر از انرژی‌ام!';
-      }
-    });
-  }
-
-  void _openFoodMenu() {
-    if (_isSleeping) return;
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Directionality(textDirection: TextDirection.rtl, child: gameScreen),
       ),
-      builder: (context) {
-        final foods = [
-          {'name': 'شیر تازه', 'icon': '🥛', 'cost': 5, 'hunger': 15, 'face': '😋', 'msg': 'به به! شیر خیلی چسبید!'},
-          {'name': 'ماهی کبابی', 'icon': '🐟', 'cost': 10, 'hunger': 25, 'face': '😻', 'msg': 'عالی بود! سیرِ سیر شدم!'},
-          {'name': 'پیتزا', 'icon': '🍕', 'cost': 15, 'hunger': 35, 'face': '🤤', 'msg': 'واو! پیتزا حرف نداره!'},
-          {'name': 'فلفل تند!', 'icon': '🌶️', 'cost': 5, 'hunger': 5, 'face': '🔥', 'msg': 'آخ سوختم!! دهنم آتیش گرفت 🔥'},
-        ];
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('آشپزخانه و یخچال غذاها', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                ...foods.map((food) {
-                  final int cost = food['cost'] as int;
-                  return ListTile(
-                    leading: Text(food['icon'] as String, style: const TextStyle(fontSize: 32)),
-                    title: Text(food['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('سیری: +${food['hunger']}%'),
-                    trailing: ElevatedButton(
-                      onPressed: () {
-                        if (_coins >= cost) {
-                          Navigator.pop(context);
-                          setState(() => _coins -= cost);
-                          _react(
-                            food['face'] as String,
-                            food['msg'] as String,
-                            hunger: food['hunger'] as int,
-                            happy: 10,
-                          );
-                        } else {
-                          Navigator.pop(context);
-                          setState(() => _speechText = 'سکه کافی نداری! برو مینی‌گیم سکه جمع کن 🪙');
-                        }
-                      },
-                      child: Text('$cost 🪙'),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    ).then((_) => setState(() {}));
   }
 
-  void _openWardrobe() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      builder: (context) {
-        final items = [
-          {'name': 'بدون کلاه', 'icon': '❌', 'cost': 0},
-          {'name': 'تاج پادشاهی', 'icon': '👑', 'cost': 20},
-          {'name': 'کلاه جادوگر', 'icon': '🎩', 'cost': 15},
-          {'name': 'پاپیون قرمز', 'icon': '🎀', 'cost': 10},
-          {'name': 'کلاه ایمنی', 'icon': '⛑️', 'cost': 10},
-        ];
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('کمد لباس و کلاه', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: items.map((item) {
-                    final int cost = item['cost'] as int;
-                    return ActionChip(
-                      avatar: Text(item['icon'] as String),
-                      label: Text('${item['name']} ($cost 🪙)'),
-                      onPressed: () {
-                        if (_coins >= cost) {
-                          setState(() {
-                            _coins -= cost;
-                            _equippedAccessory = item['icon'] == '❌' ? '' : item['icon'] as String;
-                            _speechText = 'به به! چقدر خوشتیپ شدم!';
-                          });
-                          Navigator.pop(context);
-                        } else {
-                          Navigator.pop(context);
-                          setState(() => _speechText = 'سکه کافی برای خرید این کلاه نداری!');
-                        }
-                      },
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-  void _openMiniGame() {
-    showDialog(
-      context: context,
-      builder: (context) => _CoinMiniGameDialog(
-        onCoinsEarned: (earned) {
-          setState(() {
-            _coins += earned;
-            _happiness = (_happiness + 10).clamp(0, 100);
-            _speechText = 'آفرین! $earned سکه از بازی بردی! 🎉';
-          });
-        },
-      ),
-    );
-  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _isSleeping ? Colors.indigo.shade900 : _pet.bgColor,
+      backgroundColor: const Color(0xFF1E1E2C),
       appBar: AppBar(
-        backgroundColor: _isSleeping ? Colors.indigo : _pet.bodyColor,
-        title: Text(_pet.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.deepPurple,
+        title: const Text('پارتی آدمک‌ها (۱ تا ۴ نفره)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        centerTitle: true,
         actions: [
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.amber,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: Text(
-                '$_coins 🪙',
-                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ),
-          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'صفر کردن امتیازها',
+            onPressed: () {
+              setState(() {
+                for (var p in _players) {
+                  p.score = 0;
+                }
+              });
+            },
+          )
         ],
       ),
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Container(
-            height: 65,
-            color: Colors.black.withOpacity(0.05),
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              itemCount: _pets.length,
-              itemBuilder: (context, index) {
-                final isSelected = index == _selectedPetIndex;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: ChoiceChip(
-                    selected: isSelected,
-                    selectedColor: _pets[index].bodyColor,
-                    label: Text(
-                      '${_pets[index].normalEmoji} ${_pets[index].name}',
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.black87,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    onSelected: (bool selected) => _selectPet(index),
-                  ),
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            // جدول امتیازات بازیکنان
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _statusPill('شادی', _happiness, Colors.pink),
-                _statusPill('سیری', _hunger, Colors.orange),
-                _statusPill('انرژی', _energy, Colors.green),
-              ],
-            ),
-          ),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)],
-            ),
-            child: Text(
-              _speechText,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ),
-          ScaleTransition(
-            scale: _breathingController,
-            child: AnimatedScale(
-              scale: _scale,
-              duration: const Duration(milliseconds: 200),
-              child: Column(
-                children: [
-                  Stack(
-                    alignment: Alignment.topCenter,
-                    clipBehavior: Clip.none,
+              children: _players.take(_playerCount).map((p) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: p.color,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Column(
                     children: [
-                      GestureDetector(
-                        onTap: () => _react(_pet.dizzyEmoji, 'آخ! سرم گیج رفت!', happy: -5),
-                        child: Text(_currentFace, style: const TextStyle(fontSize: 105)),
-                      ),
-                      if (_equippedAccessory.isNotEmpty)
-                        Positioned(
-                          top: -28,
-                          child: Text(_equippedAccessory, style: const TextStyle(fontSize: 48)),
-                        ),
+                      Text('بازیکن ${p.name}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      Text('${p.score} 🏆', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     ],
                   ),
-                  GestureDetector(
-                    onTap: () => _react(_pet.happyEmoji, 'هاهاها! قلقلکم میاد!', happy: 10),
-                    child: Container(
-                      width: 135,
-                      height: 140,
-                      decoration: BoxDecoration(
-                        color: _pet.bodyColor,
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(50),
-                          bottom: Radius.circular(70),
-                        ),
-                        border: Border.all(color: Colors.black26, width: 3),
-                      ),
-                      child: Center(
-                        child: Container(
-                          width: 80,
-                          height: 90,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.85),
-                            borderRadius: BorderRadius.circular(40),
-                          ),
-                          child: const Center(
-                            child: Text('قلقلکم بده', style: TextStyle(fontSize: 11, color: Colors.black54)),
-                          ),
-                        ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+
+            // انتخاب تعداد بازیکنان (۲ تا ۴ نفر)
+            const Text('تعداد بازیکنان را انتخاب کنید:', style: TextStyle(color: Colors.white70, fontSize: 16)),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [2, 3, 4].map((count) {
+                final selected = _playerCount == count;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: ChoiceChip(
+                    selected: selected,
+                    selectedColor: Colors.amber,
+                    label: Text(
+                      '$count نفره',
+                      style: TextStyle(
+                        color: selected ? Colors.black : Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
+                    backgroundColor: Colors.white12,
+                    onSelected: (_) => setState(() => _playerCount = count),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 24),
+
+            // لیست مینی‌گیم‌ها
+            Expanded(
+              child: ListView(
+                children: [
+                  _gameCard(
+                    title: '۱. مسابقه سرعت و طناب‌کشی 🏃',
+                    subtitle: 'هر کس سریع‌تر دکمه‌اش را بزند آدمکش به خط پایان می‌رسد!',
+                    color: Colors.teal,
+                    onTap: () => _startGame(0),
+                  ),
+                  _gameCard(
+                    title: '۲. نبرد تانک‌ها در میدان 💥',
+                    subtitle: 'تانک‌ها می‌چرخند؛ با شلیک دقیق بقیه را حذف کن!',
+                    color: Colors.deepOrange,
+                    onTap: () => _startGame(1),
+                  ),
+                  _gameCard(
+                    title: '۳. واکنش سریع (سبز شد بزن!) ⚡',
+                    subtitle: 'تا صفحه سبز نشده نزن! سریع‌ترین انگشت برنده است.',
+                    color: Colors.indigo,
+                    onTap: () => _startGame(2),
                   ),
                 ],
               ),
             ),
-          ),
-          FloatingActionButton.extended(
-            onPressed: _toggleRecording,
-            backgroundColor: _isRecording ? Colors.red : Colors.teal,
-            icon: Icon(_isRecording ? Icons.stop : Icons.mic, color: Colors.white, size: 26),
-            label: Text(
-              _isRecording ? 'توقف و تکرار صدا' : 'حرف بزن تا تکرار کنم',
-              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-            decoration: BoxDecoration(
-              color: _isSleeping ? Colors.indigo.shade800 : Colors.white,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
-              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _bottomIconBtn(Icons.restaurant, 'غذا', Colors.redAccent, _openFoodMenu),
-                _bottomIconBtn(Icons.favorite, 'نوازش', Colors.pink, () {
-                  _react(_pet.happyEmoji, 'ممنون! خیلی مهربونی ❤️', happy: 12);
-                }),
-                _bottomIconBtn(Icons.checkroom, 'لباس', Colors.orange, _openWardrobe),
-                _bottomIconBtn(Icons.sports_esports, 'بازی', Colors.blue, _openMiniGame),
-                _bottomIconBtn(
-                  _isSleeping ? Icons.wb_sunny : Icons.bedtime,
-                  _isSleeping ? 'بیدار' : 'خواب',
-                  Colors.deepPurple,
-                  _toggleSleep,
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-  Widget _statusPill(String label, int val, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 3)],
-      ),
-      child: Text(
-        '$label: $val%',
-        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
+
+  Widget _gameCard({required String title, required String subtitle, required Color color, required VoidCallback onTap}) {
+    return Card(
+      color: color,
+      margin: const EdgeInsets.only(bottom: 14),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(16),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(subtitle, style: const TextStyle(color: Colors.white70)),
+        ),
+        trailing: const Icon(Icons.play_circle_fill, color: Colors.white, size: 40),
+        onTap: onTap,
       ),
     );
   }
-  Widget _bottomIconBtn(IconData icon, String label, Color color, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+}
+
+// ==========================================
+// مینی‌گیم ۱: مسابقه سرعت ضربه زدن (Sprint Race)
+// ==========================================
+class TugOfWarGame extends StatefulWidget {
+  final List<PlayerInfo> players;
+  const TugOfWarGame({super.key, required this.players});
+
+  @override
+  State<TugOfWarGame> createState() => _TugOfWarGameState();
+}
+
+class _TugOfWarGameState extends State<TugOfWarGame> {
+  late List<double> _progress;
+  PlayerInfo? _winner;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _progress = List.filled(widget.players.length, 0.0);
+  }
+
+  void _tapPlayer(int index) {
+    if (_winner != null) return;
+    setState(() {
+      _progress[index] += 0.05;
+      if (_progress[index] >= 1.0) {
+        _progress[index] = 1.0;
+        _winner = widget.players[index];
+        _winner!.score += 1;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyboardListener(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent) {
+          for (int i = 0; i < widget.players.length; i++) {
+            if (event.logicalKey == widget.players[i].key) {
+              _tapPlayer(i);
+            }
+          }
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey.shade900,
+        appBar: AppBar(title: const Text('مسابقه سرعت آدمک‌ها'), backgroundColor: Colors.teal),
+        body: Column(
           children: [
-            CircleAvatar(
-              backgroundColor: color.withOpacity(0.15),
-              child: Icon(icon, color: color),
-            ),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            if (_winner != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                color: _winner!.color,
+                child: Column(
+                  children: [
+                    Text('🎉 بازیکن ${_winner!.name} برنده شد! 🎉',
+                         style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                         const SizedBox(height: 8),
+                         ElevatedButton(
+                           onPressed: () => Navigator.pop(context),
+                           child: const Text('بازگشت به منوی بازی‌ها'),
+                         )
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: List.generate(widget.players.length, (i) {
+                      final p = widget.players[i];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('آدمک ${p.name}', style: TextStyle(color: p.color, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 6),
+                          Stack(
+                            children: [
+                              Container(
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: Colors.white12,
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                              FractionallySizedBox(
+                                Use code with caution.
+                                widthFactor: _progress[i].clamp(0.08, 1.0),
+                                child: Container(
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: p.color,
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  alignment: Alignment.centerLeft,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  child: const Text('🏃', style: TextStyle(fontSize: 22)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    }),
+                  ),
+                ),
+              ),
+              // دکمه‌های کنترل بازیکنان در پایین
+              _PlayerControlPad(players: widget.players, onPlayerAction: _tapPlayer, buttonText: 'بزن!'),
           ],
         ),
       ),
     );
   }
 }
-class _CoinMiniGameDialog extends StatefulWidget {
-  final Function(int) onCoinsEarned;
-  const _CoinMiniGameDialog({required this.onCoinsEarned});
-  @override
-  State<_CoinMiniGameDialog> createState() => _CoinMiniGameDialogState();
+// ==========================================
+// مینی‌گیم ۲: نبرد تانک‌ها (Tank Arena)
+// ==========================================
+class _Tank {
+  double x;
+  double y;
+  double angle;
+  bool alive;
+  _Tank({required this.x, required this.y, required this.angle, this.alive = true});
 }
-class _CoinMiniGameDialogState extends State<_CoinMiniGameDialog> {
-  int _score = 0;
-  double _top = 80;
-  double _left = 80;
-  final Random _random = Random();
-  void _tapCoin() {
-    setState(() {
-      _score += 5;
-      _top = _random.nextDouble() * 160 + 10;
-      _left = _random.nextDouble() * 180 + 10;
+class _Bullet {
+  double x;
+  double y;
+  double dx;
+  double dy;
+  int ownerIndex;
+  _Bullet({required this.x, required this.y, required this.dx, required this.dy, required this.ownerIndex});
+}
+class TankBattleGame extends StatefulWidget {
+  final List players;
+  const TankBattleGame({super.key, required this.players});
+  @override
+  State createState() => _TankBattleGameState();
+}
+class _TankBattleGameState extends State {
+  late List<_Tank> _tanks;
+  final List<_Bullet> _bullets = [];
+  Timer? _gameTimer;
+  PlayerInfo? _winner;
+  final FocusNode _focusNode = FocusNode();
+  @override
+  void initState() {
+    super.initState();
+    final starts = [
+      [0.2, 0.2, 0.7],
+      [0.8, 0.2, 2.4],
+      [0.2, 0.8, -0.7],
+      [0.8, 0.8, -2.4],
+    ];
+    _tanks = List.generate(widget.players.length, (i) {
+      return _Tank(x: starts[i][0], y: starts[i][1], angle: starts[i][2]);
     });
+    gameTimer = Timer.periodic(const Duration(milliseconds: 30), () => _updateGame());
+  }
+  @override
+  void dispose() {
+    _gameTimer?.cancel();
+    super.dispose();
+  }
+  void _updateGame() {
+    if (_winner != null) return;
+    setState(() {
+      // چرخش مداوم تانک‌ها (مثل بازی اصلی)
+      for (var t in _tanks) {
+        if (t.alive) t.angle += 0.06;
+      }
+      // حرکت گلوله‌ها و بررسی برخورد
+      for (int i = _bullets.length - 1; i >= 0; i--) {
+        final b = _bullets[i];
+        b.x += b.dx;
+        b.y += b.dy;
+        if (b.x < 0 || b.x > 1 || b.y < 0 || b.y > 1) {
+          _bullets.removeAt(i);
+          continue;
+        }
+        for (int j = 0; j < _tanks.length; j++) {
+          if (j != b.ownerIndex && _tanks[j].alive) {
+            final dist = sqrt(pow(b.x - _tanks[j].x, 2) + pow(b.y - _tanks[j].y, 2));
+            if (dist < 0.08) {
+              _tanks[j].alive = false;
+              _bullets.removeAt(i);
+              _checkWinner();
+              break;
+            }
+          }
+        }
+      }
+    });
+  }
+  void _checkWinner() {
+    final aliveIndices = [];
+    for (int i = 0; i < _tanks.length; i++) {
+      if (_tanks[i].alive) aliveIndices.add(i);
+    }
+    if (aliveIndices.length == 1) {
+      _winner = widget.players[aliveIndices.first];
+      _winner!.score += 1;
+      _gameTimer?.cancel();
+    }
+  }
+  void _fire(int index) {
+    if (_winner != null || !_tanks[index].alive) return;
+    final t = _tanks[index];
+    // کمی حرکت به جلو + شلیک گلوله
+    t.x = (t.x + cos(t.angle) * 0.03).clamp(0.1, 0.9);
+    t.y = (t.y + sin(t.angle) * 0.03).clamp(0.1, 0.9);
+    _bullets.add(_Bullet(
+      x: t.x,
+      y: t.y,
+      dx: cos(t.angle) * 0.025,
+      dy: sin(t.angle) * 0.025,
+      ownerIndex: index,
+    ));
   }
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: AlertDialog(
-        title: Text('مینی‌گیم سکه! امتیاز: $_score 🪙'),
-        content: SizedBox(
-          width: 260,
-          height: 230,
-          child: Stack(
-            children: [
-              const Center(
-                child: Text('سریع روی سکه‌ها بزن!', style: TextStyle(color: Colors.grey)),
-              ),
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 250),
-                top: _top,
-                left: _left,
-                child: GestureDetector(
-                  onTap: _tapCoin,
-                  child: const Text('🪙', style: TextStyle(fontSize: 48)),
+    return KeyboardListener(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent) {
+          for (int i = 0; i < widget.players.length; i++) {
+            if (event.logicalKey == widget.players[i].key) _fire(i);
+          }
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.brown.shade900,
+        appBar: AppBar(title: const Text('نبرد تانک‌ها'), backgroundColor: Colors.deepOrange),
+        body: Column(
+          children: [
+            if (_winner != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                color: _winner!.color,
+                child: Column(
+                  children: [
+                    Text('🏆 تانک ${_winner!.name} پیروز شد! 🏆',
+                         style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                         ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text('بازگشت به منو')),
+                  ],
                 ),
               ),
-            ],
-          ),
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD7CCC8),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.brown, width: 4),
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Stack(
+                        children: [
+                          // نمایش تانک‌ها
+                          ...List.generate(_tanks.length, (i) {
+                            final t = _tanks[i];
+                            if (!t.alive) return const SizedBox.shrink();
+                            return Positioned(
+                              left: t.x * constraints.maxWidth - 20,
+                              top: t.y * constraints.maxHeight - 20,
+                              child: Transform.rotate(
+                                angle: t.angle,
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: widget.players[i].color,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.black, width: 2),
+                                  ),
+                                  child: const Align(
+                                    alignment: Alignment.centerRight,
+                                    child: Icon(Icons.arrow_forward, color: Colors.white, size: 22),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                          // نمایش گلوله‌ها
+                          ..._bullets.map((b) {
+                            return Positioned(
+                              left: b.x * constraints.maxWidth - 6,
+                              top: b.y * constraints.maxHeight - 6,
+                              child: Container(
+                                width: 12,
+                                height: 12,
+                                decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
+                              ),
+                            );
+                          }),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+              _PlayerControlPad(players: widget.players, onPlayerAction: _fire, buttonText: 'شلیک 💥'),
+          ],
         ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              widget.onCoinsEarned(_score);
-              Navigator.pop(context);
-            },
-            child: const Text('دریافت سکه‌ها و خروج'),
-          ),
-        ],
+      ),
+    );
+  }
+}
+// ==========================================
+// مینی‌گیم ۳: واکنش سریع (Quick Draw)
+// ==========================================
+class QuickDrawGame extends StatefulWidget {
+  final List players;
+  const QuickDrawGame({super.key, required this.players});
+  @override
+  State createState() => _QuickDrawGameState();
+}
+class _QuickDrawGameState extends State {
+  bool _isGreen = false;
+  String _status = 'صبر کن تا صفحه سبز بشه... 🛑';
+  PlayerInfo? _winner;
+  Timer? _timer;
+  final FocusNode _focusNode = FocusNode();
+  @override
+  void initState() {
+    super.initState();
+    final delay = Random().nextInt(3500) + 1500;
+    _timer = Timer(Duration(milliseconds: delay), () {
+      if (mounted && _winner == null) {
+        setState(() {
+          _isGreen = true;
+          _status = 'الان بزن!! ⚡🟢';
+        });
+      }
+    });
+  }
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+  void _press(int index) {
+    if (_winner != null) return;
+    if (!_isGreen) {
+      setState(() {
+        _status = 'خطا! بازیکن ${widget.players[index].name} زودتر زد! (امتیاز منفی)';
+      });
+    } else {
+      _timer?.cancel();
+      setState(() {
+        _winner = widget.players[index];
+        _winner!.score += 1;
+        _status = '⚡ بازیکن ${_winner!.name} سریع‌ترین بود و برنده شد! ⚡';
+      });
+    }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return KeyboardListener(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent) {
+          for (int i = 0; i < widget.players.length; i++) {
+            if (event.logicalKey == widget.players[i].key) _press(i);
+          }
+        }
+      },
+      child: Scaffold(
+        backgroundColor: _isGreen ? Colors.green.shade600 : Colors.red.shade800,
+        appBar: AppBar(title: const Text('واکنش سریع'), backgroundColor: Colors.black54),
+        body: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                children: [
+                  Text(
+                    _status,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
+                  ),
+                  if (_winner != null) ...[
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('بازگشت به منوی بازی‌ها'),
+                    )
+                  ]
+                ],
+              ),
+            ),
+            _PlayerControlPad(players: widget.players, onPlayerAction: _press, buttonText: 'بزن! ⚡'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+// ویجت دکمه‌های کنترل پایین صفحه برای لمس همزمان
+class _PlayerControlPad extends StatelessWidget {
+  final List players;
+  final Function(int) onPlayerAction;
+  final String buttonText;
+  const _PlayerControlPad({
+    required this.players,
+    required this.onPlayerAction,
+    required this.buttonText,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      color: Colors.black87,
+      child: Row(
+        children: List.generate(players.length, (i) {
+          final p = players[i];
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: GestureDetector(
+                onTapDown: (_) => onPlayerAction(i),
+                child: Container(
+                  height: 85,
+                  decoration: BoxDecoration(
+                    color: p.color,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 4)],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(buttonText, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text('${p.name} (${p.keyLabel})', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
