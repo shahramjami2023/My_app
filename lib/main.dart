@@ -1,4 +1,3 @@
-cat << 'EOF' > ~/my_app/lib/main.dart
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -334,7 +333,6 @@ with SingleTickerProviderStateMixin {
           {'name': 'پاپیون قرمز', 'icon': '🎀', 'cost': 10},
           {'name': 'کلاه ایمنی', 'icon': '⛑️', 'cost': 10},
         ];
-        Use code with caution.
         return Directionality(
           textDirection: TextDirection.rtl,
           child: Padding(
@@ -652,4 +650,3 @@ class _CoinMiniGameDialogState extends State<_CoinMiniGameDialog> {
     );
   }
 }
-EOF
