@@ -1,9 +1,12 @@
-name: Build All Platforms
+name: Build and Release App
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build_android:
@@ -14,10 +17,11 @@ jobs:
         with:
           channel: 'stable'
       - run: flutter build apk --release
+      - run: cp build/app/outputs/flutter-apk/app-release.apk My_app-Android.apk
       - uses: actions/upload-artifact@v4
         with:
           name: Android-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: My_app-Android.apk
 
   build_windows:
     runs-on: windows-latest
@@ -27,10 +31,11 @@ jobs:
         with:
           channel: 'stable'
       - run: flutter build windows --release
+      - run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath My_app-Windows.zip
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-EXE
-          path: build/windows/x64/runner/Release/
+          path: My_app-Windows.zip
 
   build_linux:
     runs-on: ubuntu-latest
@@ -41,10 +46,11 @@ jobs:
         with:
           channel: 'stable'
       - run: flutter build linux --release
+      - run: cd build/linux/x64/release/bundle && zip -r ../../../../../My_app-Linux.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: Linux-App
-          path: build/linux/x64/release/bundle/
+          path: My_app-Linux.zip
 
   build_macos:
     runs-on: macos-latest
@@ -54,7 +60,25 @@ jobs:
         with:
           channel: 'stable'
       - run: flutter build macos --release
+      - run: cd build/macos/Build/Products/Release && zip -r ../../../../My_app-macOS.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: macOS-App
-          path: build/macos/Build/Products/Release/
+          path: My_app-macOS.zip
+
+  publish_release:
+    needs: [build_android, build_windows, build_linux, build_macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: "نسخه جدید برنامه (v1.0.0)"
+          files: |
+            My_app-Android.apk
+            My_app-Windows.zip
+            My_app-Linux.zip
+            My_app-macOS.zip
