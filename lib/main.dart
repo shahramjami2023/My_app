@@ -56,7 +56,6 @@ with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
-  // شروع و پایان ضبط صدا و پخش با صدای کارتونی
   Future<void> _toggleRecording() async {
     if (_isSleeping) {
       setState(() => _mood = 'الان خوابیدم! اول بیدارم کن 💤');
@@ -64,7 +63,6 @@ with SingleTickerProviderStateMixin {
     }
 
     if (!_isRecording) {
-      // بررسی مجوز میکروفون
       if (await _audioRecorder.hasPermission()) {
         String path = '';
         if (!kIsWeb) {
@@ -83,7 +81,6 @@ with SingleTickerProviderStateMixin {
         setState(() => _mood = 'لطفاً اجازه دسترسی به میکروفون را بده!');
       }
     } else {
-      // پایان ضبط و دریافت مسیر یا آدرس صوتی
       final recordedPath = await _audioRecorder.stop();
       setState(() {
         _isRecording = false;
@@ -96,7 +93,6 @@ with SingleTickerProviderStateMixin {
     }
   }
 
-  // پخش صدا با سرعت و زیر و بمی بالا (مشابه تاکینگ تام)
   Future<void> _playFunnyVoice(String path) async {
     setState(() {
       _isTalking = true;
@@ -111,11 +107,9 @@ with SingleTickerProviderStateMixin {
         await _audioPlayer.setFilePath(path);
       }
 
-      // تغییر سرعت و زیر و بمی صدا (1.45 صدای بامزه و کارتونی ایجاد می‌کند)
       await _audioPlayer.setSpeed(1.45);
       await _audioPlayer.play();
 
-      // صبر تا پایان پخش صدا
       await _audioPlayer.playerStateStream.firstWhere(
         (state) => state.processingState == ProcessingState.completed,
       );
@@ -255,7 +249,6 @@ with SingleTickerProviderStateMixin {
             ),
           ),
 
-          // دکمه بزرگ ضبط و تکرار صدا
           FloatingActionButton.extended(
             onPressed: _toggleRecording,
             backgroundColor: _isRecording ? Colors.red : Colors.teal,
@@ -307,3 +300,15 @@ with SingleTickerProviderStateMixin {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+      ),
+      child: Row(
+        children: [
+          Text('$title: ', style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text('$value%', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
