@@ -1,3 +1,4 @@
+cat << 'EOF' > ~/my_app/lib/main.dart
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -285,30 +286,32 @@ with SingleTickerProviderStateMixin {
               children: [
                 const Text('آشپزخانه و یخچال غذاها', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
-                ...foods.map((food) => ListTile(
-                  leading: Text(food['icon'] as String, style: const TextStyle(fontSize: 32)),
-                  title: Text(food['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('سیری: +${food['hunger']}%'),
-                  trailing: ElevatedButton(
-                    onPressed: () {
-                      int cost = food['cost'] as int;
-                      if (_coins >= cost) {
-                        Navigator.pop(context);
-                        setState(() => _coins -= cost);
-                        _react(
-                          food['face'] as String,
-                          food['msg'] as String,
-                          hunger: food['hunger'] as int,
-                          happy: 10,
-                        );
-                      } else {
-                        Navigator.pop(context);
-                        setState(() => _speechText = 'سکه کافی نداری! برو مینی‌گیم سکه جمع کن 🪙');
-                      }
-                    },
-                    child: Text('$cost 🪙'),
-                  ),
-                )),
+                ...foods.map((food) {
+                  final int cost = food['cost'] as int;
+                  return ListTile(
+                    leading: Text(food['icon'] as String, style: const TextStyle(fontSize: 32)),
+                    title: Text(food['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text('سیری: +${food['hunger']}%'),
+                    trailing: ElevatedButton(
+                      onPressed: () {
+                        if (_coins >= cost) {
+                          Navigator.pop(context);
+                          setState(() => _coins -= cost);
+                          _react(
+                            food['face'] as String,
+                            food['msg'] as String,
+                            hunger: food['hunger'] as int,
+                            happy: 10,
+                          );
+                        } else {
+                          Navigator.pop(context);
+                          setState(() => _speechText = 'سکه کافی نداری! برو مینی‌گیم سکه جمع کن 🪙');
+                        }
+                      },
+                      child: Text('$cost 🪙'),
+                    ),
+                  );
+                }),
               ],
             ),
           ),
@@ -331,8 +334,8 @@ with SingleTickerProviderStateMixin {
           {'name': 'پاپیون قرمز', 'icon': '🎀', 'cost': 10},
           {'name': 'کلاه ایمنی', 'icon': '⛑️', 'cost': 10},
         ];
+        Use code with caution.
         return Directionality(
-          Use code with caution.
           textDirection: TextDirection.rtl,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -345,11 +348,11 @@ with SingleTickerProviderStateMixin {
                   spacing: 12,
                   runSpacing: 12,
                   children: items.map((item) {
+                    final int cost = item['cost'] as int;
                     return ActionChip(
                       avatar: Text(item['icon'] as String),
-                      label: Text('${item['name']} (${item['cost']} 🪙)'),
+                      label: Text('${item['name']} ($cost 🪙)'),
                       onPressed: () {
-                        int cost = item['cost'] as int;
                         if (_coins >= cost) {
                           setState(() {
                             _coins -= cost;
@@ -428,13 +431,13 @@ with SingleTickerProviderStateMixin {
                     selected: isSelected,
                     selectedColor: _pets[index].bodyColor,
                     label: Text(
-                      '${_pets[index].normalEmoji} ${pets[index].name}',
+                      '${_pets[index].normalEmoji} ${_pets[index].name}',
                       style: TextStyle(
                         color: isSelected ? Colors.white : Colors.black87,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    onSelected: () => _selectPet(index),
+                    onSelected: (bool selected) => _selectPet(index),
                   ),
                 );
               },
